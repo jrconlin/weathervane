@@ -33,6 +33,12 @@ const char *ssid = S_SSID;
 const char *password = S_PASS;
 const int power_pin = BAT_VOLT_PIN;
 
+// if we got a report, do a full 6 hour sleep
+const long full_sleep_secs = 6*60*60;
+
+// Otherwise, just sleep 5 minutes and retry.
+const long quick_nap_secs = 5*60;
+
 #ifdef EPAPER_ENABLE // Only compile this code if the EPAPER_ENABLE is defined in User_Setup.h
 EPaper epaper;
 #endif
@@ -93,13 +99,15 @@ void loop()
     int buff_len = 0;
     String buffer("");
     char error[100];
-    int nl = 20;
+    int nl = 0;
+
+    long sleep_duration = quick_nap_secs;
 
     // Why am I doing this manually instead of using some fancy HTTPs library?
     // Because dependency hell.
-    if (!client.connect(S_DATA_HOST, S_DATA_PORT))
+    if (!client.connect("10.10.1.123", 12345))
     {
-        sprintf(error, "Cannot connect");
+        sprintf(error, "Cannot connect\n");
         buffer += error;
     }
     else
@@ -117,7 +125,7 @@ void loop()
 
     epaper.setTextSize(2);
     epaper.setTextColor(TFT_GREEN);
-    epaper.drawString(WiFi.localIP().toString(), 10, 10);
+    epaper.drawString(WiFi.localIP().toString(), 10, nl+=0);
     epaper.setTextColor(TFT_BLACK);
     epaper.setTextSize(2);
 
@@ -133,11 +141,11 @@ void loop()
         {
             JSONVar report = JSON.parse(token);
             // epaper.drawString("Parsed report", 10, nl+=20);
-            epaper.setTextSize(3);
+            epaper.setTextSize(5);
             epaper.setTextColor(TFT_BLACK);
-            epaper.drawString((const char *)report["today"], 10, nl += 35);
+            epaper.drawString((const char *)report["today"], 10, nl += 20);
             epaper.setTextSize(2);
-            epaper.drawString((const char *)report["date"], 10, nl += 25);
+            epaper.drawString((const char *)report["date"], 10, nl += 55);
             nl += 25;
             epaper.setTextSize(3);
             epaper.setTextColor(TFT_BLUE);
@@ -170,6 +178,9 @@ void loop()
                 sprintf(line, "Sunset: %s", (const char *)report["sunset"]);
                 epaper.drawString(line, 10, nl += 35);
             }
+
+            // Got a report, we can sleep for a while.
+            sleep_duration = full_sleep_secs;
             break;
         }
         // epaper.drawString(token, 10, nl+=20);
@@ -186,7 +197,7 @@ void loop()
         epaper.setTextColor(TFT_RED);
         epaper.setTextSize(2);
         sprintf(line, "Battery: %02.2f %02.2f%%", val, (val/8158 * 100));
-        epaper.drawString(line, 400, 20);
+        epaper.drawString(line, 500, 10);
     }
 
     /*epaper.fillCircle(25, 25, 15, TFT_RED);
@@ -208,6 +219,6 @@ void loop()
     // TODO: Get the real clock time from either the HTTP request
     // or some other source
     // Sleep for 6 hours
-    esp_sleep_enable_timer_wakeup(6*60*60*1000000ULL);
+    esp_sleep_enable_timer_wakeup(sleep_duration*1000000ULL);
     esp_deep_sleep_start();
 }
