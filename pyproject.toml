@@ -1,0 +1,50 @@
+[build-system]
+# I am an old geek, set in my ways, and prefer using something
+# reliable vs fancy
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "weathervane_mqtt"
+version = "0.0.1"
+requires-python = ">= 3.11"
+# For educational purposes only,
+# mostly mine.
+license = { text = "CC BY-NC 4.0 (Modified)" }
+authors = [{ name = "jr conlin", email = "src+play@jrconlin.com" }]
+description = "Provide the current weather via MQTT."
+readme = "README.md"
+keywords = ["weather", "mqtt"]
+classifiers = ["Programming Language :: Python :: 3"]
+dependencies = ["paho-mqtt", "requests"]
+
+[project.urls]
+Homepage = "https://github.com/jrconlin/weathervane_mqtt"
+
+[project.optional-dependencies]
+dev = ["isort", "bandit", "black", "pytest"]
+
+[tool.isort]
+profile = "black"
+skip_gitignore = true
+
+[tool.bandit]
+skips = ["B101", "B608"]
+
+[tool.mypy]
+disable_error_code = "attr-defined"
+disallow_untyped_calls = false
+follow_imports = "normal"
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+strict_optional = true
+warn_no_return = true
+warn_redundant_casts = true
+warn_return_any = true
+warn_unused_ignores = true
+warn_unreachable = true
+check_untyped_defs = true
+
+[project.scripts]
+weathervane = "weathervane.__main__:main"

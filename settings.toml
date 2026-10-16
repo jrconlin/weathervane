@@ -1,0 +1,26 @@
+# Weathervane Config file
+[general]
+logging = "DEBUG"
+
+[mqtt]
+host = 10.10.1.110
+user = hass
+pass = hass
+topic = esp_home/1/weather
+# The credentials for your MQTT server
+port = 1883
+[location]
+# Your location in Lat/Long. (There are a number of resources to figure this out, probably
+# does not need to be more than a couple of decimal points.)
+longitude = -121.98
+latitude = 37.30
+
+[weather]
+contact = jrconlin@gmail.com
+useragent = Weathervane/{ID}
+url = https://api.weather.gov
+ID = 425c95b4-dadf-443c-9715-536f9ac4e4e3
+# weather.gov's API needs a unique user agent string and optional Contact info.
+# Eventually, they may assign a unique API key, but it's all open for now.
+# See https://www.weather.gov/documentation/services-web-api
+feature-flags = []
