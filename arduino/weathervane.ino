@@ -37,7 +37,7 @@ const int power_pin = BAT_VOLT_PIN;
 const long full_sleep_secs = 6*60*60;
 
 // Otherwise, just sleep 5 minutes and retry.
-const long quick_nap_secs = 5*60;
+const long quick_nap_secs = 5*60*60;
 
 #ifdef EPAPER_ENABLE // Only compile this code if the EPAPER_ENABLE is defined in User_Setup.h
 EPaper epaper;
@@ -88,8 +88,21 @@ String response(NetworkClient *client)
     {
         result += (client->readStringUntil('\n')) + "\n";
     }
+    delay(200);
     client->stop();
     return result;
+}
+
+int drawWeather(EPaper epaper, JSONVar report, int r_num, int nl) {
+    epaper.setTextSize(3);
+    epaper.setTextColor(TFT_BLUE);
+    epaper.drawString((const char *)report["forecast"][r_num]["name"], 10, nl += 35);
+    epaper.setTextSize(2);
+    epaper.setTextColor(TFT_BLACK);
+    for (int i=0; i < report["forecast"][r_num]["long"].length(); i++){
+        epaper.drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 25);
+    }
+    return nl;
 }
 
 void loop()
@@ -105,7 +118,7 @@ void loop()
 
     // Why am I doing this manually instead of using some fancy HTTPs library?
     // Because dependency hell.
-    if (!client.connect("10.10.1.123", 12345))
+    if (!client.connect("10.10.1.198", 12345))
     {
         sprintf(error, "Cannot connect\n");
         buffer += error;
@@ -139,34 +152,48 @@ void loop()
         }
         if (token[0] == '{')
         {
+            int r_num = 0;
             JSONVar report = JSON.parse(token);
             // epaper.drawString("Parsed report", 10, nl+=20);
             epaper.setTextSize(5);
             epaper.setTextColor(TFT_BLACK);
             epaper.drawString((const char *)report["today"], 10, nl += 20);
             epaper.setTextSize(2);
-            epaper.drawString((const char *)report["date"], 10, nl += 55);
-            nl += 25;
-            epaper.setTextSize(3);
-            epaper.setTextColor(TFT_BLUE);
-            epaper.drawString((const char *)report["forecast"][0]["name"], 10, nl += 35);
-            epaper.setTextSize(2);
-            epaper.setTextColor(TFT_BLACK);
-            epaper.drawString((const char *)report["forecast"][0]["long"], 10, nl += 25);
-            epaper.setTextSize(3);
-            epaper.setTextColor(TFT_BLUE);
-            epaper.drawString((const char *)report["forecast"][1]["name"], 10, nl += 35);
-            epaper.setTextSize(2);
-            epaper.setTextColor(TFT_BLACK);
-            epaper.drawString((const char *)report["forecast"][1]["long"], 10, nl += 25);
-            epaper.setTextSize(3);
-            epaper.setTextColor(TFT_BLUE);
-            epaper.drawString((const char *)report["forecast"][2]["name"], 10, nl += 35);
-            epaper.setTextSize(2);
-            epaper.setTextColor(TFT_BLACK);
-            epaper.drawString((const char *)report["forecast"][2]["long"], 10, nl += 25);
+            epaper.drawString((const char *)report["date"], 350, nl+10);
+            nl += 20;
 
-            nl += 50;
+            nl = drawWeather(epaper, report, 0, nl);
+            
+            // The following are pretty much exactly what is in `drawWeather` but the app crashes when
+            // I call them in that funciton. Zero idea why, so doing an inplace for now.
+            //*
+            {
+                r_num = 1;
+                epaper.setTextSize(3);
+                epaper.setTextColor(TFT_BLUE);
+                epaper.drawString((const char *)report["forecast"][r_num]["name"], 10, nl += 35);
+                epaper.setTextSize(2);
+                epaper.setTextColor(TFT_BLACK);
+                for (int i=0; i < report["forecast"][r_num]["long"].length(); i++){
+                    epaper.drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 25);
+                }
+            }
+            // */
+            //*
+            {
+                r_num = 2;
+                epaper.setTextSize(3);
+                epaper.setTextColor(TFT_BLUE);
+                epaper.drawString((const char *)report["forecast"][r_num]["name"], 10, nl += 35);
+                epaper.setTextSize(2);
+                epaper.setTextColor(TFT_BLACK);
+                for (int i=0; i < report["forecast"][r_num]["long"].length(); i++){
+                    epaper.drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 25);
+                }
+            }
+            // */
+
+            nl = 340;
             {
                 char line[200];
                 epaper.setTextColor(TFT_GREEN);
@@ -197,7 +224,7 @@ void loop()
         epaper.setTextColor(TFT_RED);
         epaper.setTextSize(2);
         sprintf(line, "Battery: %02.2f %02.2f%%", val, (val/8158 * 100));
-        epaper.drawString(line, 500, 10);
+        epaper.drawString(line, 500, 0);
     }
 
     /*epaper.fillCircle(25, 25, 15, TFT_RED);

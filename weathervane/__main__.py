@@ -70,6 +70,17 @@ def req(url):
     log.debug(f'curl -v {url} -H "User-Agent={ua_str}"')
     return requests.get(url=url, headers={"User-Agent": ua_str})
 
+def linebreak(line:str) -> list[str]:
+    lines = []
+    if len(line) < 66:
+        return [line]
+    while len(line) > 66:
+          line1 = line[:66]
+          word_break = len(line1) - line1[::-1].index(" ")
+          lines.append(line[:word_break-1])
+          line = line[word_break:]
+    lines.append(line)
+    return lines
 
 def get_weather() -> dict[str, Any]:
     """Fetch the weather info for the location."""
@@ -115,7 +126,7 @@ def get_weather() -> dict[str, Any]:
             "name": period["name"],
             "temp": period["temperature"],
             "short": period["shortForecast"],
-            "long": period["detailedForecast"],
+            "long": linebreak(period["detailedForecast"]),
         }
         result["forecast"].append(forecast)
     return result
@@ -158,12 +169,13 @@ class MQTT_server:
 
 class WVServer(BaseHTTPRequestHandler):
       def do_GET(self):
-            report = get_weather()
+            report = json.dumps(get_weather())
+            log.debug(report)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json");
             self.end_headers()
-            self.wfile.write(json.dumps(report).encode())
+            self.wfile.write(report.encode())
 
 # Make the magic happen.
 def main():
