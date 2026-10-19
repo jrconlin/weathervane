@@ -36,7 +36,7 @@ def get_logging(level=None) -> logging.Logger:
     base = "DEBUG"
     if not level:
         level = os.environ.get(
-            "PYTHON_LOG", config["general"].get("logging", base)
+            "PYTHON_LOG", "DEBUG"
         ).upper()
     logging.basicConfig(level=logging.getLevelNamesMapping().get(level, base))
     return logging.getLogger(APP)
@@ -93,6 +93,13 @@ def get_weather() -> dict[str, Any]:
         "today": now.strftime("%A"),
         "date": now.strftime("%B %d, %Y %H:%M"),
     }
+    update_hr = int(config["update"].get("period", "6")) or 6
+
+    next_refresh_hr = ((now.hour // update_hr) * update_hr) + int(config["update"].get("offset_hour", "0"))
+    if next_refresh_hr < now.hour:
+        next_refresh_hr = next_refresh_hr + update_hr
+
+    refresh_time = (now.replace(hour=next_refresh_hr, minute=0, second=0) - now).seconds
 
     # First, get the location info for where we want.
     base_url = config["weather"].get("url", "https://api.weather.gov")
@@ -114,6 +121,7 @@ def get_weather() -> dict[str, Any]:
     result["transit"] = datetime.datetime.fromisoformat(
         properties["astronomicalData"]["transit"]
     ).strftime("%H:%M %p")
+    result["refresh"] = refresh_time
 
     # Get the hourly forecast...
     reply = req(properties.get("forecast"))
@@ -163,12 +171,13 @@ class MQTT_server:
 		self.log.debug(message.__class__)
 		req = json.loads(message.payload)
 		self.log.debug(f"message: {req}")
-		report = get_weather()
+		report = get_weathe(userdata.settings)
 		self.log.debug(f"Sending: {report}")
 		client.publish(f"{self.config["mqtt"].get("topic")}/report", json.dumps(report))
 
 class WVServer(BaseHTTPRequestHandler):
-      def do_GET(self):
+
+    def do_GET(self):
             report = json.dumps(get_weather())
             log.debug(report)
 
@@ -179,7 +188,10 @@ class WVServer(BaseHTTPRequestHandler):
 
 # Make the magic happen.
 def main():
+	global config, log
+	config = get_settings()
 
+	log = get_logging(config.get("general", "logging"))
 	server = HTTPServer(("0.0.0.0", port), WVServer)
 
 	log.info(f"Starting server at {port}")
@@ -211,8 +223,6 @@ def main():
 	"""
 
 if __name__ == "__main__":
-	config = get_settings()
-	log = get_logging(getattr(config, "logging", None))
 	try:
 		main()
 	except Exception as ex:
