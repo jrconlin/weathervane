@@ -19,6 +19,9 @@ Here is the 6 colors you can display:
 #include "TFT_eSPI.h"
 #include "esp_wifi.h"
 
+#include <Adafruit_GFX.h>
+#include "font/arial8.h"
+
 #include <Arduino.h>
 #include <Arduino_JSON.h>
 #include <EthernetClient.h>
@@ -67,15 +70,15 @@ Here is the 6 colors you can display:
 */
 const char *ssid = S_SSID;
 const char *password = S_PASS;
-const int power_pin = BAT_VOLT_PIN;
 
 // if we got a report, do a full 4 hour sleep
-const long full_sleep_secs = 4*60*60;
+const long full_sleep_secs = 2*60*60;
 
 // Otherwise, just sleep 5 minutes and retry.
 const long quick_nap_secs = 5*60;
 
-// WiFiUDP Udp;
+#define BAT_MON_PIN 21
+#define BAT_READ_PIN 1
 
 #ifdef EPAPER_ENABLE // Only compile this code if the EPAPER_ENABLE is defined in User_Setup.h
 EPaper epaper;
@@ -100,9 +103,12 @@ void setup()
         Serial.print(".");
     }
 
-    pinMode(power_pin, OUTPUT);
-    // Udp.begin(localPort);
-    // t_now = getNtpTime();
+    // Set the battery monitoring pin modes.
+    // (You would think that BAT_MON_PIN, which is written to, 
+    //  would be INPUT. You would be wrong.)
+    pinMode(BAT_MON_PIN, OUTPUT);
+    pinMode(BAT_READ_PIN, OUTPUT);
+
 }
 
 int len(char *str)
@@ -132,14 +138,17 @@ String response(NetworkClient *client)
     return result;
 }
 
-int drawWeather(EPaper epaper, JSONVar report, int r_num, int nl) {
-    epaper.setTextSize(3);
-    epaper.setTextColor(TFT_BLUE);
-    epaper.drawString((const char *)report["forecast"][r_num]["name"], 10, nl += 35);
-    epaper.setTextSize(2);
-    epaper.setTextColor(TFT_BLACK);
-    for (int i=0; i < report["forecast"][r_num]["long"].length(); i++){  
-        epaper.drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 25);
+int drawWeather(EPaper *epaper, JSONVar report, int r_num, int nl) {
+    epaper->setTextSize(3);
+    epaper->setTextColor(TFT_BLUE);
+    nl += 33;
+    //sprintf(line, "%s %s %d°F",(const char *)report["forecast"][r_num]["name"], (const char *)report["forecast"][r_num]["short"], (int)report["forecast"][r_num]["temp"]);
+    //epaper.drawString(line, 10, nl);                
+    epaper->drawString((const char *)report["forecast"][r_num]["name"], 10, nl);                
+    epaper->setTextSize(2);
+    epaper->setTextColor(TFT_BLACK);
+    for (int i=0; i < report["forecast"][r_num]["long"].length(); i++){
+        epaper->drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 20);
     }
     return nl;
 }
@@ -191,7 +200,7 @@ void loop()
 
     epaper.setTextSize(2);
     epaper.setTextColor(TFT_YELLOW);
-    epaper.drawString(WiFi.localIP().toString(), 10, nl+=0);
+    epaper.drawString(WiFi.localIP().toString(), 350, nl+=0);
     epaper.setTextColor(TFT_BLACK);
     epaper.setTextSize(2);
 
@@ -219,60 +228,42 @@ void loop()
             long refresh = (long)report["refresh"];
             epaper.setTextSize(5);
             epaper.setTextColor(TFT_BLACK);
-            epaper.drawString((const char *)report["today"], 10, nl += 20);
-            epaper.setTextSize(2);
-            epaper.setTextColor(TFT_YELLOW);
-            sprintf(line, "Updated: %s", (const char *)report["date"]);
-            epaper.drawString(line, 350, nl+10);
-            // sprintf(line, "seconds: %d", refresh);
-            sleep_duration = refresh;
+            epaper.drawString((const char *)report["today"], 10, nl += 5);
+            epaper.setTextSize(1);
+            epaper.setTextColor(TFT_BLACK);
+            sprintf(line, "%s", (const char *)report["date"]);
+            epaper.drawString(line, 650, 18);
+            sprintf(line, "seconds: %d", refresh);
+            sleep_duration = full_sleep_secs;
             nl += 20;
 
-            nl = drawWeather(epaper, report, 0, nl);
-            
             // The following are pretty much exactly what is in `drawWeather` but the app crashes when
             // I call them in that funciton. Zero idea why, so doing an inplace for now.
-            //*
+            for (int r_num=0; r_num < 3; r_num++)
             {
-                r_num = 1;
                 epaper.setTextSize(3);
                 epaper.setTextColor(TFT_BLUE);
                 nl += 35;
                 //sprintf(line, "%s %s %d°F",(const char *)report["forecast"][r_num]["name"], (const char *)report["forecast"][r_num]["short"], (int)report["forecast"][r_num]["temp"]);
                 //epaper.drawString(line, 10, nl);                
-                epaper.drawString((const char *)report["forecast"][r_num]["name"], 10, nl);                
-                epaper.setTextSize(2);
-                epaper.setTextColor(TFT_BLACK);
-                for (int i=0; i < report["forecast"][r_num]["long"].length(); i++){
-                    epaper.drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 25);
-                }
-            }
-            // */
-            //*
-            {
-                r_num = 2;
-                epaper.setTextSize(3);
-                epaper.setTextColor(TFT_BLUE);
-                nl += 35;
                 epaper.drawString((const char *)report["forecast"][r_num]["name"], 10, nl);
+                nl += 2;
                 epaper.setTextSize(2);
                 epaper.setTextColor(TFT_BLACK);
                 for (int i=0; i < report["forecast"][r_num]["long"].length(); i++){
-                    epaper.drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 25);
+                    epaper.drawString((const char *)report["forecast"][r_num]["long"][i], 10, nl += 21);
                 }
             }
-            // */
 
-            nl = 400;
+            // Show the sunrise / sunset footer
+            nl = 450;
             {
+                epaper.fillRect(0,nl-5,800,480,TFT_WHITE);
                 epaper.setTextColor(TFT_GREEN);
                 epaper.setTextSize(3);
-                sprintf(line, "Sunrise: %s", (const char *)report["sunrise"]);
-                epaper.drawString(line, 10, nl);
-                sprintf(line, "Sunset: %s", (const char *)report["sunset"]);
-                epaper.drawString(line, 400, nl);
-                sprintf(line, "Noon: %s", (const char *)report["transit"]);
-                epaper.drawString(line, 10, nl += 35);
+                epaper.drawString((const char *)report["sunrise"], 10, nl);
+                epaper.drawString((const char *)report["transit"], 300, nl);
+                epaper.drawString((const char *)report["sunset"], 630, nl);
             }
 
             // Got a report, we can sleep for a while.
@@ -283,16 +274,33 @@ void loop()
         token = strtok(NULL, "\n");
     }
 
-    // Display the battery voltage
-    // TODO: convert to percentage.
-    // AFAIK: 8158 is the full value / 302 is the empty value. 
-    float val = 0;
-    val = analogRead(power_pin) * 2;
+    // Display the battery level.
+    // Right, so, Arduino treats GPIO as pin numbers. Even though they distinguish
+    // Analog and Digital pins.
+    // The following code is how you read the battery for e100* displays. 
+    // This is a very low voltage read process, to preserve battery life. 
+    // (See https://www.hackster.io/melastmohican/driving-the-reterminal-e1002-7-3-color-e-paper-with-arduino-21070f#toc-zero-drain-battery-measurement-15)
     {
+        float val = 0;
+        // Set the battery monitor pin (GPIO21) to high to enable the voltage read
+        digitalWrite(BAT_MON_PIN, HIGH);
+        // wait a few ticks for the value to populate.
+        delay(10);
+        // Read the voltage from GPIO1
+        int rawVolt = analogRead(BAT_READ_PIN);
+        // Reset the BAT_MON_PIN to low to reduce voltage use.
+        digitalWrite(BAT_MON_PIN, LOW);
+        
+        // Funky fun math to convert the raw voltage read number to something useful.
+        // this divides the raw read by the battery capacity, times the voltage provided, 
+        // times 2 (because of the buck circuit(?))
+        float power = (rawVolt / 4095.0f) * 3.3f * 2.0f;
         epaper.setTextColor(TFT_RED);
         epaper.setTextSize(2);
-        sprintf(line, "Battery: %02.2f %02.2f%%", val, (val/8158 * 100));
-        epaper.drawString(line, 500, 0);
+        // Get the percentage of battery available.
+        float level = (power / 4.15) * 100;
+        sprintf(line, "%02.2f%% (%02.2f)", level, power);
+        epaper.drawString(line, 645, 0);
     }
     epaper.update(); // update the display
 
